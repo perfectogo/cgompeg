@@ -17,6 +17,19 @@ The `cgompeg` bindings directly interface with the FFmpeg libraries, so you must
 sudo apt update
 sudo apt install -y libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libavdevice-dev libavfilter-dev
 ```
+
+- **MacOS(arch -arm64):**
+1. Ensure your terminal is configured for Apple Silicon (ARM64):
+
+```sh
+arch -arm64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+2. Install FFmpeg Libraries
+To install FFmpeg and its development libraries, use the following:
+```sh
+brew install ffmpeg
+```
+This will install both the FFmpeg binaries and the required development libraries (libavcodec, libavformat, libavutil, etc.).
 <!-- 
 ### **2. `pkg-config`**
 
