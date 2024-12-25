@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "*.embeddedhtml": "html",
-        "avformat.h": "c"
+        "avformat.h": "c",
+        "avcodec.h": "c"
     }
 }

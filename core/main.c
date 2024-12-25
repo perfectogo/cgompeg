@@ -1,11 +1,12 @@
-#include <libavformat/avformat.h>
-#include <libavcodec/avcodec.h>
-#include <libavutil/opt.h>
-#include <libavutil/timestamp.h>
-#include <libavutil/error.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h> 
+#include <sys/stat.h>
+
+#include "libavformat/avformat.h"
+#include "libavcodec/avcodec.h"
+#include "libavutil/opt.h"
+#include "libavutil/timestamp.h"
+#include "libavutil/error.h"
  
 #ifdef _WIN32
     #include <direct.h>  // For _mkdir on Windows
@@ -71,7 +72,7 @@ AVFormatContext* setup_hls_output(const char *output_file, AVFormatContext *inpu
         #endif
     }
 
-    snprintf(m3u8_path, sizeof(m3u8_path), "%s/%s.m3u8", output_dir, output_file);
+    snprintf(m3u8_path, sizeof(m3u8_path), "%s/%s", output_dir, output_file);
     AVFormatContext *output_ctx = NULL;
 
     /*
@@ -128,7 +129,6 @@ AVFormatContext* setup_hls_output(const char *output_file, AVFormatContext *inpu
     hls_list_size: the number of segments to keep in the playlist
     hls_segment_filename: the filename format for the segments
     */
-
     char segment_path[1024];
     snprintf(segment_path, sizeof(segment_path), "%s/segment%%03d.ts", output_dir);
    
@@ -188,11 +188,12 @@ int copy_packets(AVFormatContext *input_ctx, AVFormatContext *output_ctx) {
         
         AVStream *in_stream = input_ctx->streams[pkt.stream_index];
         AVStream *out_stream = output_ctx->streams[pkt.stream_index];
-
-        pkt.pts = av_rescale_q_rnd(pkt.pts, in_stream->time_base, out_stream->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
-        pkt.dts = av_rescale_q_rnd(pkt.dts, in_stream->time_base, out_stream->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
-        pkt.duration = av_rescale_q(pkt.duration, in_stream->time_base, out_stream->time_base);
-        pkt.pos = -1;
+        {
+            pkt.pts = av_rescale_q_rnd(pkt.pts, in_stream->time_base, out_stream->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+            pkt.dts = av_rescale_q_rnd(pkt.dts, in_stream->time_base, out_stream->time_base, AV_ROUND_NEAR_INF | AV_ROUND_PASS_MINMAX);
+            pkt.duration = av_rescale_q(pkt.duration, in_stream->time_base, out_stream->time_base);
+            pkt.pos = -1;
+        }
 
         int result = av_interleaved_write_frame(output_ctx, &pkt);
         {
@@ -241,7 +242,9 @@ int main(int argc, char **argv) {
     AVFormatContext *output_ctx = setup_hls_output(output_file, input_ctx);
     {
         if (output_ctx == NULL) {
+            fprintf(stderr, "Error: Could not setup HLS output.\n");
             avformat_close_input(&input_ctx);
+            avformat_free_context(output_ctx);
             return 1;
         }
     }
