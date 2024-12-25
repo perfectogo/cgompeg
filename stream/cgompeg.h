@@ -2,7 +2,8 @@
 #define CGOMPEG_H
 
 #include <stdio.h>
+#include <stdint.h>  // for uint8_t
 
-int inputStream(FILE *input_file);
+int inputStream(uint8_t *data, size_t size);
 
 #endif

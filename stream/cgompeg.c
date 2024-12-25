@@ -16,7 +16,6 @@ static int custom_read(void *opaque, uint8_t *buf, int buf_size) {
     FILE *file = (FILE*)opaque;
     
     size_t bytes_read = fread(buf, 1, buf_size, file);
-    printf("custom_read: Read %zu bytes\n", bytes_read);
     if (bytes_read == 0) {
         if (feof(file)) {
             printf("custom_read: EOF reached\n");
@@ -269,16 +268,18 @@ AVFormatContext* open_input_stream(FILE* input_file) {
     return input_ctx;
 }
 
-int inputStream(FILE *input_file) {
-
-    if (!input_file) {
-        fprintf(stderr, "Error: Input file is NULL.\n");
+int inputStream(uint8_t *data, size_t size) {
+    // Create a memory file from the data
+    FILE *memory_file = fmemopen(data, size, "rb");
+    if (!memory_file) {
+        fprintf(stderr, "Error: Could not create memory file.\n");
         return -1;
     }
 
-    // Open input stream
-    AVFormatContext *input_ctx = open_input_stream(input_file);
+    // Open the input stream
+    AVFormatContext *input_ctx = open_input_stream(memory_file);
     if (!input_ctx) {
+        fclose(memory_file);
         fprintf(stderr, "Error: Could not open input stream.\n");
         return -1;
     }
@@ -286,35 +287,19 @@ int inputStream(FILE *input_file) {
     // Setup HLS output
     AVFormatContext *output_ctx = setup_hls_output("output.m3u8", input_ctx);
     if (!output_ctx) {
-        fprintf(stderr, "Error: Could not setup HLS output.\n");
-        
-        // Free input context resources
-        AVIOContext *avio_ctx = input_ctx->pb;
-        if (avio_ctx) {
-            av_free(avio_ctx->buffer);
-            av_free(avio_ctx);
-        }
+        fclose(memory_file);
         avformat_close_input(&input_ctx);
+        fprintf(stderr, "Error: Could not setup HLS output.\n");
         return -1;
     }
 
     // Copy packets
     int result = copy_packets(input_ctx, output_ctx);
 
-    // Free input context resources
-    AVIOContext *avio_ctx = input_ctx->pb;
-    if (avio_ctx) {
-        av_free(avio_ctx->buffer);
-        av_free(avio_ctx);
-    }
+    // Cleanup
+    fclose(memory_file);
     avformat_close_input(&input_ctx);
     avformat_free_context(output_ctx);
 
-    if (result < 0) {
-        fprintf(stderr, "Error: Packet copy failed.\n");
-        return -1;
-    }
-
-    printf("HLS conversion completed successfully.\n");
-    return 0;
+    return result;
 }

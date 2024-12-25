@@ -1,18 +1,29 @@
 package api
 
 /*
-#cgo LDFLAGS: -lavformat -lavcodec -lswscale -lavutil
+#cgo LDFLAGS: -lavformat -lavcodec -lswscale -lavutil -ldl
 #include <stdio.h>
+#include <dlfcn.h>
 #include "./../stream/cgompeg.h"
 #include "./../stream/cgompeg.c"
+
+int reload_sources() {
+    // Close and reload the custom source files
+    void *handle = dlopen("./../stream/cgompeg.so", RTLD_NOW | RTLD_GLOBAL);
+    if (!handle) {
+        fprintf(stderr, "dlopen error: %s\n", dlerror());
+        return -1;
+    }
+    return 0;
+}
 */
 import "C"
 
 import (
-	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
-	"os"
+	"unsafe"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -20,21 +31,22 @@ import (
 	echoSwagger "github.com/swaggo/echo-swagger"
 )
 
-func InputStream(inputFile *os.File) int {
-	// Seek to beginning of file before reading
-	inputFile.Seek(0, 0)
+func InputStream(inputFile *multipart.FileHeader) int {
+	// Open the file
+	file, err := inputFile.Open()
+	if err != nil {
+		panic("Failed to open multipart file: " + err.Error())
+	}
+	defer file.Close()
 
-	cInputFile := C.fdopen(C.int(inputFile.Fd()), C.CString("rb"))
-	if cInputFile == nil {
-		return -1
+	// Read the file content into a buffer
+	data, err := io.ReadAll(file)
+	if err != nil {
+		panic("Failed to read file content: " + err.Error())
 	}
 
-	result := C.inputStream(cInputFile)
-
-	fmt.Println("result", result)
-	// Let C close the file instead of Go
-	// Don't use defer here as it can cause double free
-	C.fclose(cInputFile)
+	// Pass the file content to C
+	result := C.inputStream((*C.uint8_t)(unsafe.Pointer(&data[0])), C.size_t(len(data)))
 
 	return int(result)
 }
@@ -58,31 +70,8 @@ func uploadHandler(c echo.Context) error {
 		}
 	}
 
-	// Open the uploaded file
-	src, err := file.Open()
-	{
-		if err != nil {
-			return c.String(http.StatusInternalServerError, "Failed to open file: "+err.Error())
-		}
-	}
-	defer src.Close()
-
-	// Create a Go temporary file to act as a stream
-	tempFile, err := os.CreateTemp("", "upload-*")
-	{
-		if err != nil {
-			return c.String(http.StatusInternalServerError, "Failed to create temporary file: "+err.Error())
-		}
-		defer os.Remove(tempFile.Name())
-		defer tempFile.Close()
-	}
-	// Copy the uploaded file to the temporary file
-	if _, err = io.Copy(tempFile, src); err != nil {
-		return c.String(http.StatusInternalServerError, "Failed to save file: "+err.Error())
-	}
-
 	// Pass the temporary file to the C function
-	if result := InputStream(tempFile); result != 0 {
+	if result := InputStream(file); result != 0 {
 		return c.String(http.StatusInternalServerError, "Failed to process file.")
 	}
 
