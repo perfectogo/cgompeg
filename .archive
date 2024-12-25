@@ -1,0 +1,14 @@
+/*
+#cgo LDFLAGS: -lavformat -lavcodec -lswscale -lavutil
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+
+#include "libavformat/avformat.h"
+#include "libavcodec/avcodec.h"
+#include "libavutil/opt.h"
+#include "libavutil/timestamp.h"
+#include "libavutil/error.h"
+#include "./../core/cgompeg.h"
+#include "./../core/cgompeg.c"
+*/

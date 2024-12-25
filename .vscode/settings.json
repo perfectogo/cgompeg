@@ -2,6 +2,7 @@
     "files.associations": {
         "*.embeddedhtml": "html",
         "avformat.h": "c",
-        "avcodec.h": "c"
+        "avcodec.h": "c",
+        "cgompeg.h": "c"
     }
 }

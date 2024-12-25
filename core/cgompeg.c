@@ -12,14 +12,18 @@
     #include <direct.h>  // For _mkdir on Windows
 #endif
 
-/*
-this function initializes the ffmpeg library
-it also initializes the network library
-but it is deprecated and not used
-*/
-void initialize_ffmpeg() {
-    //av_register_all();
-    avformat_network_init();
+static int custom_read(void *opaque, uint8_t *buf, int buf_size) {
+    
+    FILE *file = (FILE*)opaque;
+    
+    size_t bytes_read = fread(buf, 1, buf_size, file);
+    {
+        if (bytes_read == 0) {
+            return AVERROR_EOF;
+        }
+    }
+
+    return bytes_read;
 }
 
 /* 
@@ -218,19 +222,8 @@ int copy_packets(AVFormatContext *input_ctx, AVFormatContext *output_ctx) {
     return 0;
 }
 
-// Main function
-int main(int argc, char **argv) {
-   
-    if (argc < 3) {
-        fprintf(stderr, "Usage: %s <input_file> <output_file>\n", argv[0]);
-        return 1;
-    }
-
-    const char *input_file = argv[1];
-    const char *output_file = argv[2];
-
-    initialize_ffmpeg();
-
+int cmd(const char *input_file, const char *output_file) {
+    
     AVFormatContext *input_ctx = open_input_file(input_file);
     { 
         if (input_ctx == NULL) { 
@@ -265,5 +258,79 @@ int main(int argc, char **argv) {
 
     printf("HLS conversion completed successfully.\n");
    
+    return 0;
+}
+
+AVFormatContext* open_input_stream(FILE* input_file) {
+    
+    AVFormatContext *input_ctx = NULL;
+    unsigned char *buffer = NULL;
+    AVIOContext *avio_ctx = NULL;
+    size_t buffer_size = 4096; // Adjust buffer size as needed
+
+    // Allocate the buffer
+    buffer = av_malloc(buffer_size);
+    {
+        if (buffer == NULL) {
+            fprintf(stderr, "Error: Could not allocate buffer.\n");
+            return NULL;
+        }
+    }
+
+    // Create custom AVIOContext
+    avio_ctx = avio_alloc_context(buffer, buffer_size, 0, input_file, &custom_read, NULL, NULL);
+    {
+        if (avio_ctx == NULL) {
+            fprintf(stderr, "Error: Could not allocate AVIOContext.\n");
+            av_free(buffer);
+            return NULL;
+        }
+    }
+
+    // Create AVFormatContext and associate it with AVIOContext
+    input_ctx = avformat_alloc_context();
+    {
+        if (input_ctx == NULL) {
+            fprintf(stderr, "Error: Could not allocate AVFormatContext.\n");
+            av_free(buffer);
+            return NULL;
+        }
+    }
+    
+    input_ctx->pb = avio_ctx;
+
+    // Open the input format
+    int result = avformat_open_input(&input_ctx, NULL, NULL, NULL);
+    {
+        if (result < 0) {
+            fprintf(stderr, "Error: Could not open input stream.\n");
+            av_free(buffer);
+            return NULL;
+        }
+    }
+
+    av_free(buffer);
+    avio_free_directory_entry(&avio_ctx);
+    
+    return input_ctx;
+}
+
+int inputStream(FILE *input_file) {
+
+    AVFormatContext *input_ctx = open_input_stream(input_file);
+    {
+        if (input_ctx == NULL) {
+            fprintf(stderr, "Error: Could not open input stream.\n");
+            return 1;
+        }
+    }
+
+    int result = cmd(input_ctx, "output.m3u8");
+    {
+        if (result < 0) {
+            return 1;
+        }
+    }
+
     return 0;
 }
