@@ -16,6 +16,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	_ "github.com/perfectogo/cgompeg/api/docs"
 	echoSwagger "github.com/swaggo/echo-swagger"
 )
 
