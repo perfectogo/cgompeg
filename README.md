@@ -63,3 +63,8 @@ This function will be deprecated once support for older GnuTLS and
 OpenSSL libraries is removed, and this function has no purpose
 anymore.
  ```
+
+open swagger ui
+```
+http://localhost:8080/swagger/index.html
+```

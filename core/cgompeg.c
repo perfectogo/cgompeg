@@ -26,6 +26,11 @@ static int custom_read(void *opaque, uint8_t *buf, int buf_size) {
     return bytes_read;
 }
 
+// int custom_read(void *opaque, uint8_t *buf, int buf_size) {
+//     FILE *file = (FILE*)opaque;
+//     return fread(buf, 1, buf_size, file);
+// }
+
 /* 
 this function opens the input file and returns the context
 it also finds the stream info and returns the context
@@ -258,79 +263,5 @@ int cmd(const char *input_file, const char *output_file) {
 
     printf("HLS conversion completed successfully.\n");
    
-    return 0;
-}
-
-AVFormatContext* open_input_stream(FILE* input_file) {
-    
-    AVFormatContext *input_ctx = NULL;
-    unsigned char *buffer = NULL;
-    AVIOContext *avio_ctx = NULL;
-    size_t buffer_size = 4096; // Adjust buffer size as needed
-
-    // Allocate the buffer
-    buffer = av_malloc(buffer_size);
-    {
-        if (buffer == NULL) {
-            fprintf(stderr, "Error: Could not allocate buffer.\n");
-            return NULL;
-        }
-    }
-
-    // Create custom AVIOContext
-    avio_ctx = avio_alloc_context(buffer, buffer_size, 0, input_file, &custom_read, NULL, NULL);
-    {
-        if (avio_ctx == NULL) {
-            fprintf(stderr, "Error: Could not allocate AVIOContext.\n");
-            av_free(buffer);
-            return NULL;
-        }
-    }
-
-    // Create AVFormatContext and associate it with AVIOContext
-    input_ctx = avformat_alloc_context();
-    {
-        if (input_ctx == NULL) {
-            fprintf(stderr, "Error: Could not allocate AVFormatContext.\n");
-            av_free(buffer);
-            return NULL;
-        }
-    }
-    
-    input_ctx->pb = avio_ctx;
-
-    // Open the input format
-    int result = avformat_open_input(&input_ctx, NULL, NULL, NULL);
-    {
-        if (result < 0) {
-            fprintf(stderr, "Error: Could not open input stream.\n");
-            av_free(buffer);
-            return NULL;
-        }
-    }
-
-    av_free(buffer);
-    avio_free_directory_entry(&avio_ctx);
-    
-    return input_ctx;
-}
-
-int inputStream(FILE *input_file) {
-
-    AVFormatContext *input_ctx = open_input_stream(input_file);
-    {
-        if (input_ctx == NULL) {
-            fprintf(stderr, "Error: Could not open input stream.\n");
-            return 1;
-        }
-    }
-
-    int result = cmd(input_ctx, "output.m3u8");
-    {
-        if (result < 0) {
-            return 1;
-        }
-    }
-
     return 0;
 }
