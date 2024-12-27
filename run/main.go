@@ -1,16 +1,16 @@
-package api
+package main
 
 /*
-#cgo LDFLAGS: -lavformat -lavcodec -lswscale -lavutil
-#include "./stream/cgompeg.h"
-#include "./stream/cgompeg.c"
+#include "ccode/main.h"
+#include "ccode/main.c"
 */
 import "C"
 import (
-	"bytes"
 	"io"
 	"net/http"
-	"unsafe"
+	"os"
+
+	_ "app/docs"
 
 	"github.com/labstack/echo/v4"
 	echoSwagger "github.com/swaggo/echo-swagger"
@@ -21,11 +21,13 @@ import (
 // @description This is a sample API for Go and C code interoperability.
 // @host localhost:8080
 // @BasePath /
-func Api() {
-	e := echo.New()
-	e.POST("/upload", upload)
-	e.GET("/swagger/*", echoSwagger.WrapHandler)
-	e.Start(":8080")
+func main() {
+	router := echo.New()
+	router.POST("/upload", upload)
+
+	// swagger
+	router.GET("/swagger/*", echoSwagger.WrapHandler)
+	router.Start(":8080")
 }
 
 // upload is the handler for the upload endpoint
@@ -44,37 +46,38 @@ func Api() {
 // @Failure 500 {string} string "Failed to read from pipe"
 // @Router /upload [post]
 func upload(c echo.Context) error {
+
 	file, err := c.FormFile("file")
 	if err != nil {
-		return c.String(http.StatusBadRequest, "Failed to get file")
+		return c.String(http.StatusBadRequest, "Failed to retrieve file: "+err.Error())
 	}
 
 	src, err := file.Open()
+	// view size of file
+
 	if err != nil {
-		return c.String(http.StatusInternalServerError, "Failed to open file")
+		return c.String(http.StatusInternalServerError, "Failed to open uploaded file: "+err.Error())
 	}
 	defer src.Close()
 
-	// Read entire file into memory
-	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, src); err != nil {
-		return c.String(http.StatusInternalServerError, "Failed to read file")
+	rPipe, wPipe, err := os.Pipe()
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "Failed to create pipe: "+err.Error())
 	}
 
-	// Get the buffer as byte slice
-	data := buf.Bytes()
+	go func() {
+		defer wPipe.Close()
+		io.Copy(wPipe, src)
+	}()
 
-	// Pass the buffer to C
-	result := C.stream_to_hls(
-		(*C.uchar)(unsafe.Pointer(&data[0])),
-		C.size_t(len(data)),
-	)
-
-	if result != 0 {
-		return c.String(http.StatusInternalServerError, "Failed to process video")
+	code := C.read_file_from_pipe(C.int(rPipe.Fd()))
+	if code != 0 {
+		return c.String(http.StatusInternalServerError, "Failed to read from pipe: ")
 	}
 
-	return c.String(http.StatusOK, "Stream processed successfully!")
+	rPipe.Close()
+
+	return c.String(http.StatusOK, "File processed and saved by C!")
 }
 
 // swagg command: swag init -d . -o ./docs --parseDependency

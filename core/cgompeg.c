@@ -229,6 +229,8 @@ int copy_packets(AVFormatContext *input_ctx, AVFormatContext *output_ctx) {
 
 int cmd(const char *input_file, const char *output_file) {
     
+    av_log_set_level(AV_LOG_QUIET);
+
     AVFormatContext *input_ctx = open_input_file(input_file);
     { 
         if (input_ctx == NULL) { 

@@ -68,3 +68,13 @@ open swagger ui
 ```
 http://localhost:8080/swagger/index.html
 ```
+On Linux, you'll need to install the necessary development packages.
+Depending on your Linux distribution, use one of these commands:
+For Ubuntu/Debian:
+```
+sudo apt-get update
+sudo apt-get install build-essential
+```
+```
+gcc -c ccode/main.c -o ccode/main.o
+```

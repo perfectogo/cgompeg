@@ -6,7 +6,9 @@ package cmd
 #include "./../core/cgompeg.c"
 */
 import "C"
-import "unsafe"
+import (
+	"unsafe"
+)
 
 func Cmd(inputFile, outputFile string) int {
 
@@ -18,4 +20,3 @@ func Cmd(inputFile, outputFile string) int {
 
 	return int(C.cmd(cInputFile, cOutputFile))
 }
-
