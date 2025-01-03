@@ -7,14 +7,30 @@ package api
 */
 import "C"
 import (
-	"bytes"
+	"encoding/binary"
 	"io"
 	"net/http"
-	"unsafe"
+	"os"
+	"path/filepath"
+	"sync"
 
 	"github.com/labstack/echo/v4"
 	echoSwagger "github.com/swaggo/echo-swagger"
+
+	_ "github.com/perfectogo/cgompeg/api/docs"
 )
+
+type Metadata struct {
+	FileSize   int64
+	Duration   float64
+	Bitrate    float64
+	Width      int32
+	Height     int32
+	FrameRate  float64
+	MimeType   [128]byte
+	Extension  [16]byte
+	Resolution [32]byte
+}
 
 // @title Go and C Code Interoperability API
 // @version 1.0
@@ -55,27 +71,64 @@ func upload(c echo.Context) error {
 	}
 	defer src.Close()
 
-	// Read entire file into memory
-	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, src); err != nil {
-		return c.String(http.StatusInternalServerError, "Failed to read file")
+	rPipe, wPipe, err := os.Pipe()
+	if err != nil {
+		return c.String(http.StatusInternalServerError, "Failed to create pipe")
 	}
 
-	// Get the buffer as byte slice
-	data := buf.Bytes()
+	var wg sync.WaitGroup
+	wg.Add(1)
 
-	// Pass the buffer to C
-	result := C.stream_to_hls(
-		(*C.uchar)(unsafe.Pointer(&data[0])),
-		C.size_t(len(data)),
-	)
+	// Create a channel for error handling
+	errChan := make(chan error, 1)
 
-	if result != 0 {
-		return c.String(http.StatusInternalServerError, "Failed to process video")
+	// Create metadata
+	var header Metadata
+	{
+		header.FileSize = file.Size
+		copy(header.MimeType[:], file.Header.Get("Content-Type"))
+		copy(header.Extension[:], filepath.Ext(file.Filename))
+		copy(header.Resolution[:], file.Header.Get("Content-Resolution"))
+		header.Duration = 0
+		header.Bitrate = 0
+		header.Width = 0
+		header.Height = 0
+		header.FrameRate = 0
+	}
+
+	go func() {
+		defer wg.Done()
+		defer wPipe.Close()
+
+		// Write metadata first
+		if err := binary.Write(wPipe, binary.LittleEndian, header); err != nil {
+			errChan <- err
+			return
+		}
+
+		// Then write file content
+		if _, err := io.Copy(wPipe, src); err != nil {
+			errChan <- err
+			return
+		}
+	}()
+
+	// Process the data in C
+	result := C.read_pipe(C.int(rPipe.Fd()))
+	rPipe.Close()
+
+	// Wait for writing to complete
+	wg.Wait()
+
+	// Check for any errors from the goroutine
+	select {
+	case err := <-errChan:
+		return c.String(http.StatusInternalServerError, "Failed to write data: "+err.Error())
+	default:
+		if result != 0 {
+			return c.String(http.StatusInternalServerError, "Failed to process video")
+		}
 	}
 
 	return c.String(http.StatusOK, "Stream processed successfully!")
 }
-
-// swagg command: swag init -d . -o ./docs --parseDependency
-// swagg url: localhost:8080/swagger/index.html
