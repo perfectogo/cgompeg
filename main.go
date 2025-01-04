@@ -1,6 +1,10 @@
 package main
 
-import "github.com/perfectogo/cgompeg/api"
+import (
+	"log"
+
+	"github.com/perfectogo/cgompeg/api"
+)
 
 // func main() {
 
@@ -25,6 +29,7 @@ import "github.com/perfectogo/cgompeg/api"
 // @host localhost:8080
 // @BasePath /
 func main() {
-
-	api.Api()
+	if err := api.StartServer(":8080"); err != nil {
+		log.Fatal(err)
+	}
 }

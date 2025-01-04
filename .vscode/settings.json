@@ -3,6 +3,8 @@
         "*.embeddedhtml": "html",
         "avformat.h": "c",
         "avcodec.h": "c",
-        "cgompeg.h": "c"
+        "cgompeg.h": "c",
+        "compare": "cpp",
+        "cstdint": "cpp"
     }
 }
