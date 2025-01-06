@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <pthread.h>
 #include "cgompeg.h"
 
 #define TEMP_FILE "tmp/temp.mp4"
@@ -286,10 +287,14 @@ int read_pipe(int fd, MetaData *metadata) {
         mkdir("tmp", 0777);
     #endif
 
-    printf("file size: %" PRId64 "\n", metadata->FileSize);
-    printf("extension: %s\n", metadata->Extension);
-    printf("mime type: %s\n", metadata->MimeType);
-    printf("resolution: %s\n", metadata->Resolution);
+    // debug hls
+
+    av_log_set_level(AV_LOG_DEBUG);
+
+    // printf("file size: %" PRId64 "\n", metadata->FileSize);
+    // printf("extension: %s\n", metadata->Extension);
+    // printf("mime type: %s\n", metadata->MimeType);
+    // printf("resolution: %s\n", metadata->Resolution);
 
     // create .mp4 file
     FILE *file = fopen(TEMP_FILE, "wb");
@@ -315,4 +320,114 @@ int read_pipe(int fd, MetaData *metadata) {
 
     return result;
 }
+
+// // Define thread argument struct
+// struct ThreadArgs {
+//     int fd;
+//     FILE *file;
+// };
+
+// // Update the thread functions and add mutex for synchronization
+// pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
+// pthread_cond_t write_done = PTHREAD_COND_INITIALIZER;
+// volatile int writing_complete = 0;
+
+// void* writer_thread(void *arg) {
+//     struct ThreadArgs *args = (struct ThreadArgs*)arg;
+//     char buffer[8192];  // Increased buffer size
+//     ssize_t bytes_read;
+
+//     while ((bytes_read = read(args->fd, buffer, sizeof(buffer))) > 0) {
+//         pthread_mutex_lock(&file_mutex);
+//         if (fwrite(buffer, 1, bytes_read, args->file) != bytes_read) {
+//             pthread_mutex_unlock(&file_mutex);
+//             return (void*)(intptr_t)1;
+//         }
+//         fflush(args->file);
+//         pthread_mutex_unlock(&file_mutex);
+//     }
+
+//     pthread_mutex_lock(&file_mutex);
+//     writing_complete = 1;
+//     pthread_cond_signal(&write_done);
+//     pthread_mutex_unlock(&file_mutex);
     
+//     return NULL;
+// }
+
+// void* stream_thread(void *arg) {
+//     pthread_mutex_lock(&file_mutex);
+//     while (!writing_complete) {
+//         pthread_cond_wait(&write_done, &file_mutex);
+//     }
+//     pthread_mutex_unlock(&file_mutex);
+
+//     // Ensure file exists and is readable
+//     if (access(TEMP_FILE, R_OK) != 0) {
+//         fprintf(stderr, "Error: Cannot access temporary file\n");
+//         return (void*)(intptr_t)1;
+//     }
+
+//     int res = cmd(TEMP_FILE, "output.m3u8");
+//     return (void*)(intptr_t)res;
+// }
+
+// int run_threads(int fd) {
+//     pthread_t writer_thread_id;
+//     pthread_t stream_thread_id;
+//     void *thread_result;
+//     int ret = 0;
+
+//     // Reset global state
+//     writing_complete = 0;
+
+//     // Create tmp directory
+//     #ifdef _WIN32
+//         _mkdir("tmp");
+//     #else
+//         mkdir("tmp", 0777);
+//     #endif
+
+//     FILE *file = fopen(TEMP_FILE, "wb");
+//     if (!file) {
+//         perror("Error: Could not open temporary file");
+//         return 1;
+//     }
+
+//     struct ThreadArgs args = {fd, file};
+
+//     if (pthread_create(&writer_thread_id, NULL, writer_thread, &args) != 0) {
+//         fclose(file);
+//         return 1;
+//     }
+
+//     if (pthread_create(&stream_thread_id, NULL, stream_thread, NULL) != 0) {
+//         pthread_cancel(writer_thread_id);
+//         pthread_join(writer_thread_id, NULL);
+//         fclose(file);
+//         return 1;
+//     }
+
+//     // Wait for both threads
+//     pthread_join(writer_thread_id, &thread_result);
+//     if (thread_result) ret = 1;
+
+//     pthread_join(stream_thread_id, &thread_result);
+//     if (thread_result) ret = 1;
+
+//     // Cleanup
+//     fclose(file);
+//     remove(TEMP_FILE);
+
+//     return ret;
+// }
+
+// int read_pipe(int fd, MetaData *metadata) {
+//     #ifdef _WIN32
+//         _mkdir("tmp");
+//     #else
+//         mkdir("tmp", 0777);
+//     #endif
+
+//     return run_threads(fd);
+// }

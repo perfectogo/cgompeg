@@ -1,7 +1,7 @@
 package api
 
 /*
-#cgo LDFLAGS: -lavformat -lavcodec -lswscale -lavutil
+#cgo LDFLAGS: -lavformat -lavcodec -lswscale -lavutil -pthread
 #include <string.h>
 #include "./stream/cgompeg.h"
 #include "./stream/cgompeg.c"
@@ -11,8 +11,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
-	"unsafe"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -88,22 +86,22 @@ func handleUpload(c echo.Context) error {
 		}
 	}
 
-	var metadata Metadata
-	{
-		metadata.FileSize = file.Size
-		copy(metadata.MimeType[:], file.Header.Get("Content-Type"))
-		copy(metadata.Extension[:], filepath.Ext(file.Filename))
-		copy(metadata.Resolution[:], file.Header.Get("Content-Resolution"))
-	}
+	// var metadata Metadata
+	// {
+	// 	metadata.FileSize = file.Size
+	// 	copy(metadata.MimeType[:], file.Header.Get("Content-Type"))
+	// 	copy(metadata.Extension[:], filepath.Ext(file.Filename))
+	// 	copy(metadata.Resolution[:], file.Header.Get("Content-Resolution"))
+	// }
 
-	cMetadata := C.MetaData{}
-	{
-		// Replace the direct copy with unsafe pointer copy
-		C.memcpy(unsafe.Pointer(&cMetadata.FileSize), unsafe.Pointer(&metadata.FileSize), 8)
-		C.memcpy(unsafe.Pointer(&cMetadata.MimeType[0]), unsafe.Pointer(&metadata.MimeType[0]), 128)
-		C.memcpy(unsafe.Pointer(&cMetadata.Extension[0]), unsafe.Pointer(&metadata.Extension[0]), 16)
-		C.memcpy(unsafe.Pointer(&cMetadata.Resolution[0]), unsafe.Pointer(&metadata.Resolution[0]), 32)
-	}
+	// cMetadata := C.MetaData{}
+	// {
+	// 	// Replace the direct copy with unsafe pointer copy
+	// 	C.memcpy(unsafe.Pointer(&cMetadata.FileSize), unsafe.Pointer(&metadata.FileSize), 8)
+	// 	C.memcpy(unsafe.Pointer(&cMetadata.MimeType[0]), unsafe.Pointer(&metadata.MimeType[0]), 128)
+	// 	C.memcpy(unsafe.Pointer(&cMetadata.Extension[0]), unsafe.Pointer(&metadata.Extension[0]), 16)
+	// 	C.memcpy(unsafe.Pointer(&cMetadata.Resolution[0]), unsafe.Pointer(&metadata.Resolution[0]), 32)
+	// }
 
 	go func() {
 
@@ -114,7 +112,7 @@ func handleUpload(c echo.Context) error {
 	}()
 
 	// Process the data in C
-	result := C.read_pipe(C.int(rPipe.Fd()), &cMetadata)
+	result := C.read_pipe(C.int(rPipe.Fd()), &C.MetaData{})
 	{
 		if int(result) != 0 {
 			return c.JSON(http.StatusInternalServerError, map[string]string{
