@@ -5,7 +5,7 @@
 #include <inttypes.h>
 #include "cgompeg.h"
 
-#define TEMP_FILE "tmp/output.mp4"
+#define TEMP_FILE "tmp/temp.mp4"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -81,7 +81,7 @@ it also sets the hls options
 AVFormatContext* setup_hls_output(const char *output_file, AVFormatContext *input_ctx) {
     
     char m3u8_path[1024];
-    char output_dir[] = "../outputs";
+    char output_dir[] = "outputs";
     {   
         #ifdef _WIN32
             _mkdir(output_dir);
@@ -279,19 +279,23 @@ int cmd(const char *input_file, const char *output_file) {
 
 
 int read_pipe(int fd, MetaData *metadata) {
+    // Create tmp directory if it doesn't exist
+    #ifdef _WIN32
+        _mkdir("tmp");
+    #else
+        mkdir("tmp", 0777);
+    #endif
 
     printf("file size: %" PRId64 "\n", metadata->FileSize);
     printf("extension: %s\n", metadata->Extension);
     printf("mime type: %s\n", metadata->MimeType);
     printf("resolution: %s\n", metadata->Resolution);
 
-    // create  .mp4 file
+    // create .mp4 file
     FILE *file = fopen(TEMP_FILE, "wb");
-    {
-        if (!file) {
-            perror("Error: Could not open file descriptor as a file");
-            return 1;
-        }
+    if (!file) {
+        perror("Error: Could not open file descriptor as a file");
+        return 1;
     }
 
     // read from pipe
@@ -301,9 +305,14 @@ int read_pipe(int fd, MetaData *metadata) {
         fwrite(buffer, 1, bytes_read, file);
     }
 
-    cmd(TEMP_FILE, "output.m3u8");
+    fclose(file);  // Close file before passing to cmd
 
-    fclose(file);
-    return 0;
+    // Process the video
+    int result = cmd(TEMP_FILE, "output.m3u8");
+
+    // Clean up temp file
+    remove(TEMP_FILE);
+
+    return result;
 }
     
